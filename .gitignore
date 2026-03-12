@@ -1,0 +1,12 @@
+# Env vars
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+
+# OS Specific
+.DS_Store
