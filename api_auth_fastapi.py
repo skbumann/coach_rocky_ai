@@ -30,14 +30,16 @@ async def callback(request: Request):
     # Capture the full HTTPS URL
     authorization_response = str(request.url)
     
-    session.fetch_token(
+    session_user = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri)
+    session_user.scope = ["activity:read_all"]
+    session_user.fetch_token(
         token_url=token_url,
         client_id=client_id,
 	client_secret=client_secret,
         authorization_response=authorization_response,
         include_client_id=True
     )
-    response = session.get("https://www.strava.com/api/v3/athlete/activities") 
+    response = session_user.get("https://www.strava.com/api/v3/athlete/activities") 
     data = response.text
     print(data)
     return data #{"status": "Authenticated", "token": token}
