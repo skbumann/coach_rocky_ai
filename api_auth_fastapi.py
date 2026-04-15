@@ -1,4 +1,5 @@
 import os
+import json
 import uvicorn
 from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
@@ -9,7 +10,7 @@ load_dotenv()
 
 app = FastAPI()
 
-# OAuth Config (Ensure your Strava Callback is set to https://localhost:8000/callback)
+# OAuth Config 
 client_id = os.getenv('CLIENT_ID')
 client_secret = os.getenv('CLIENT_SECRET')
 redirect_uri = "https://localhost:8000/callback" 
@@ -35,14 +36,27 @@ async def callback(request: Request):
     session_user.fetch_token(
         token_url=token_url,
         client_id=client_id,
-	client_secret=client_secret,
+	    client_secret=client_secret,
         authorization_response=authorization_response,
         include_client_id=True
     )
-    response = session_user.get("https://www.strava.com/api/v3/athlete/activities") 
+
+    # Get individual activity (access to activity description)
+    #response = session_user.get("https://www.strava.com/api/v3/activities/17967927452") 
+
+    # Get list of all activities (doesn't show activity description)
+    params = {'per_page': 200, 'page': 1}
+    response = session_user.get("https://www.strava.com/api/v3/athlete/activities/", params=params) 
+
+    # Extract the JSON data from the response
+    activities_data = response.json()
+
+    with open('my_strava_data.json', 'w') as f:
+        json.dump(activities_data, f, indent=4)
+
     data = response.text
-    print(data)
-    return data #{"status": "Authenticated", "token": token}
+    print(len(activities_data))
+    return None #activities_data #{"status": "Authenticated", "token": token}
 
 if __name__ == "__main__":
     # Point uvicorn to your mkcert files
