@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import RedirectResponse, HTMLResponse
 from requests_oauthlib import OAuth2Session
 from dotenv import load_dotenv
+from src.rag_helper import *
 
 load_dotenv()
 

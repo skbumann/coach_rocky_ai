@@ -48,25 +48,25 @@ def ingest_activity(activity: dict) -> None:
 
     sql_activity = """
         INSERT INTO activities (
-            id, athlete_id,
-            name, activity_type, sport_type,
+            id, upload_id, external_id, athlete_id,
+            name, description,
+            activity_type, sport_type,
             distance_meters, moving_time_seconds, elapsed_time_seconds,
             total_elevation_gain, average_speed, max_speed,
-            average_heartrate, max_heartrate, average_watts, kilojoules, 
-            comment_count, pr_count, achievement_count, kudos_count,
+            average_heartrate, max_heartrate, calories,
+            pr_count, achievement_count, kudos_count,
             start_date, start_date_local, timezone,
             gear_id, trainer, commute, private,
             raw_json
         )
         VALUES (
-            %(id)s, %(athlete_id)s,
-            %(name)s,
+            %(id)s, %(upload_id)s, %(external_id)s, %(athlete_id)s,
+            %(name)s, %(description)s,
             %(activity_type)s, %(sport_type)s,
             %(distance_meters)s, %(moving_time_seconds)s, %(elapsed_time_seconds)s,
             %(total_elevation_gain)s, %(average_speed)s, %(max_speed)s,
-            %(average_heartrate)s, %(max_heartrate)s, %(average_watts)s, %(kilojoules)s, 
-            %(comment_count)s, %(pr_count)s, %(achievement_count)s, %(kudos_count)s,
-            %(athlete_count)s, %(start_latlng)s, %(end_latlng)s, %(elev_high)s, %(elev_low)s,
+            %(average_heartrate)s, %(max_heartrate)s, %(calories)s,
+            %(pr_count)s, %(achievement_count)s, %(kudos_count)s,
             %(start_date)s, %(start_date_local)s, %(timezone)s,
             %(gear_id)s, %(trainer)s, %(commute)s, %(private)s,
             %(raw_json)s
@@ -76,10 +76,12 @@ def ingest_activity(activity: dict) -> None:
 
     params = {
         "id":                   activity["id"],
+        "upload_id":            activity.get("upload_id"),
+        "external_id":          activity.get("external_id"),
         "athlete_id":           activity["athlete"]["id"],
         # unstructured text
         "name":                 activity.get("name"),
-        #"description":          activity.get("description"),
+        "description":          activity.get("description"),
         # structured fields
         "activity_type":        activity.get("type"),
         "sport_type":           activity.get("sport_type"),
@@ -91,17 +93,10 @@ def ingest_activity(activity: dict) -> None:
         "max_speed":            activity.get("max_speed"),
         "average_heartrate":    activity.get("average_heartrate"),
         "max_heartrate":        activity.get("max_heartrate"),
-        "average_watts":        activity.get("average_watts"),
-        "kilojoules":           activity.get("kilojoules"),
-        "comment_count":        activity.get("comment_count", 0),
+        "calories":             activity.get("calories"),
         "pr_count":             activity.get("pr_count", 0),
         "achievement_count":    activity.get("achievement_count", 0),
         "kudos_count":          activity.get("kudos_count", 0),
-        "athlete_count":        activity.get("athlete_count", 0),
-        "start_latlng":         activity.get("start_latlng"),
-        "end_latlng":           activity.get("end_latlng"),
-        "elev_high":            activity.get("elev_high"),
-        "elev_low":             activity.get("elev_low"),
         "start_date":           activity.get("start_date"),
         "start_date_local":     activity.get("start_date_local"),
         "timezone":             activity.get("timezone"),

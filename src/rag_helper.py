@@ -48,25 +48,25 @@ def ingest_activity(activity: dict) -> None:
 
     sql_activity = """
         INSERT INTO activities (
-            id, upload_id, external_id, athlete_id,
-            name, description,
-            activity_type, sport_type,
+            id, athlete_id,
+            name, sport_type,
             distance_meters, moving_time_seconds, elapsed_time_seconds,
             total_elevation_gain, average_speed, max_speed,
-            average_heartrate, max_heartrate, calories,
-            pr_count, achievement_count, kudos_count,
+            average_heartrate, max_heartrate, average_watts, kilojoules, 
+            comment_count, pr_count, achievement_count, kudos_count,
+            athlete_count, start_lat, start_long, end_lat, end_long, elev_high, elev_low,
             start_date, start_date_local, timezone,
             gear_id, trainer, commute, private,
             raw_json
         )
         VALUES (
-            %(id)s, %(upload_id)s, %(external_id)s, %(athlete_id)s,
-            %(name)s, %(description)s,
-            %(activity_type)s, %(sport_type)s,
+            %(id)s, %(athlete_id)s,
+            %(name)s, %(sport_type)s,
             %(distance_meters)s, %(moving_time_seconds)s, %(elapsed_time_seconds)s,
             %(total_elevation_gain)s, %(average_speed)s, %(max_speed)s,
-            %(average_heartrate)s, %(max_heartrate)s, %(calories)s,
-            %(pr_count)s, %(achievement_count)s, %(kudos_count)s,
+            %(average_heartrate)s, %(max_heartrate)s, %(average_watts)s, %(kilojoules)s, 
+            %(comment_count)s, %(pr_count)s, %(achievement_count)s, %(kudos_count)s,
+            %(athlete_count)s, %(start_lat)s, %(start_long)s, %(end_lat)s, %(end_long)s, %(elev_high)s, %(elev_low)s,
             %(start_date)s, %(start_date_local)s, %(timezone)s,
             %(gear_id)s, %(trainer)s, %(commute)s, %(private)s,
             %(raw_json)s
@@ -76,14 +76,11 @@ def ingest_activity(activity: dict) -> None:
 
     params = {
         "id":                   activity["id"],
-        "upload_id":            activity.get("upload_id"),
-        "external_id":          activity.get("external_id"),
         "athlete_id":           activity["athlete"]["id"],
         # unstructured text
         "name":                 activity.get("name"),
-        "description":          activity.get("description"),
+        #"description":          activity.get("description"),
         # structured fields
-        "activity_type":        activity.get("type"),
         "sport_type":           activity.get("sport_type"),
         "distance_meters":      activity.get("distance"),
         "moving_time_seconds":  activity.get("moving_time"),
@@ -93,10 +90,21 @@ def ingest_activity(activity: dict) -> None:
         "max_speed":            activity.get("max_speed"),
         "average_heartrate":    activity.get("average_heartrate"),
         "max_heartrate":        activity.get("max_heartrate"),
-        "calories":             activity.get("calories"),
+        "average_watts":        activity.get("average_watts"),
+        "kilojoules":           activity.get("kilojoules"),
+        "comment_count":        activity.get("comment_count", 0),
         "pr_count":             activity.get("pr_count", 0),
         "achievement_count":    activity.get("achievement_count", 0),
         "kudos_count":          activity.get("kudos_count", 0),
+        "athlete_count":        activity.get("athlete_count", 0),
+        #"start_latlng":         activity.get("start_latlng"),
+        "start_lat":            activity.get("start_latlng")[0] if activity.get("start_latlng") else None,
+        "start_long":           activity.get("start_latlng")[1] if activity.get("start_latlng") else None,
+        "end_lat":              activity.get("end_latlng")[0] if activity.get("end_latlng") else None,
+        "end_long":             activity.get("end_latlng")[1] if activity.get("end_latlng") else None,
+        #"end_latlng":           activity.get("end_latlng"),
+        "elev_high":            activity.get("elev_high"),
+        "elev_low":             activity.get("elev_low"),
         "start_date":           activity.get("start_date"),
         "start_date_local":     activity.get("start_date_local"),
         "timezone":             activity.get("timezone"),
@@ -122,7 +130,7 @@ def embed_text(text: str) -> list[float]:
     return response.data[0].embedding
 
 
-def build_chunk_text(activity: dict, chunk_type: str = "combined") -> str:
+def build_chunk_text(activity: dict, chunk_type: str = "name") -> str:
     """
     Construct the text string that will be embedded.
     'combined' merges name + description for richer semantic signal.
@@ -143,7 +151,7 @@ def build_chunk_text(activity: dict, chunk_type: str = "combined") -> str:
         return ". ".join(parts)
 
 
-def embed_activity(activity_id: int, chunk_text: str, chunk_type: str = "combined") -> None:
+def embed_activity(activity_id: int, chunk_text: str, chunk_type: str = "name") -> None:
     """Generate and store embedding for an activity's text chunk."""
 
     vector = embed_text(chunk_text)
@@ -166,9 +174,9 @@ def ingest_and_embed(activity: dict) -> None:
     """Full pipeline: ingest JSON → store → embed."""
     ingest_activity(activity)
 
-    chunk_text = build_chunk_text(activity, chunk_type="combined")
+    chunk_text = build_chunk_text(activity, chunk_type="name")
     if chunk_text.strip():
-        embed_activity(activity["id"], chunk_text, chunk_type="combined")
+        embed_activity(activity["id"], chunk_text, chunk_type="name")
 
 
 # Semantic retrieval for the unstructured data (i.e. captions)
@@ -176,7 +184,7 @@ def ingest_and_embed(activity: dict) -> None:
 def retrieve_similar_activities(
     query: str,
     top_k: int = 5,
-    activity_type: Optional[str] = None,
+    sport_type: Optional[str] = None,
     min_distance_meters: Optional[float] = None,
     since_date: Optional[str] = None,
 ) -> list[dict]:
@@ -188,12 +196,12 @@ def retrieve_similar_activities(
     query_vector = embed_text(query)
 
     # Build dynamic WHERE clause for metadata pre-filtering
-    filters = ["e.chunk_type = 'combined'"]
+    filters = ["e.chunk_type = 'name'"]
     params: list = []
 
-    if activity_type:
-        filters.append("a.activity_type = %s")
-        params.append(activity_type)
+    if sport_type:
+        filters.append("a.sport_type = %s")
+        params.append(sport_type)
 
     if min_distance_meters:
         filters.append("a.distance_meters >= %s")
@@ -209,12 +217,10 @@ def retrieve_similar_activities(
         SELECT
             a.id,
             a.name,
-            a.description,
-            a.activity_type,
+            a.sport_type,
             a.distance_meters,
             a.moving_time_seconds,
             a.average_heartrate,
-            a.calories,
             a.start_date,
             e.chunk_text,
             1 - (e.embedding <=> %s::vector) AS similarity
@@ -267,14 +273,14 @@ def get_training_baseline(weeks: int = 64):
     sql = f"""
         WITH weekly AS (
             SELECT
-                DATE_TRUNC('week', start_date)        AS week,
+                DATE_TRUNC('week', start_date)         AS week,
                 COUNT(*)                               AS runs_that_week,
                 SUM(distance_meters) / 1000.0          AS weekly_km,
                 SUM(distance_meters) / 1609.34         AS weekly_miles,
                 MAX(distance_meters) / 1609.34         AS longest_run_miles,
                 AVG(average_heartrate)                 AS avg_hr
             FROM activities
-            WHERE LOWER(TRIM(activity_type)) = 'run'
+            WHERE LOWER(TRIM(sport_type)) = 'run'
               AND start_date >= NOW() - INTERVAL '{weeks} weeks'
             GROUP BY week
             ORDER BY week DESC
@@ -340,7 +346,7 @@ def run_rag_agent(user_prompt: str):
 # Load JSON data into DB
 def load_data():
     # Path to your JSON file
-    json_file_path = "data/strava_activities.json"
+    json_file_path = "data/real_strava_data.json"
 
     try:
         # 1. Load the full list of activities

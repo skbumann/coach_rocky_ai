@@ -9,12 +9,15 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE activities (
     -- Primary identity
     id                    BIGINT PRIMARY KEY,
+    upload_id             BIGINT,
+    external_id           TEXT,
 
     -- Athlete reference
     athlete_id            BIGINT NOT NULL,
 
     -- Unstructured text 
-    name                  TEXT,            
+    name                  TEXT,         
+    description           TEXT,      
 
     -- Structured activity metrics 
     activity_type         TEXT,        
@@ -27,19 +30,10 @@ CREATE TABLE activities (
     max_speed             NUMERIC,
     average_heartrate     NUMERIC,
     max_heartrate         NUMERIC,
-    average_watts         NUMERIC,
-    kilojoules            NUMERIC,
-    comment_count         INT,
+    calories              NUMERIC,
     pr_count              INT,
     achievement_count     INT,
     kudos_count           INT,
-    athlete_count         INT,
-
-    -- Locations
-    start_latlng          GEOGRAPHY(Point, 4326),
-    end_latlng            GEOGRAPHY(Point, 4326),
-    elev_high             NUMERIC DEFAULT 0.0,
-    elev_low              NUMERIC DEFAULT 0.0,  
 
     -- Timestamps
     start_date            TIMESTAMPTZ,

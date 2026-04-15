@@ -1,4 +1,6 @@
 -- Enable vector extension for semantic search w/ pgvector
+--CREATE EXTENSION IF NOT EXISTS postgis;
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 -- MAIN ACTIVITIES TABLE
@@ -9,18 +11,14 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE activities (
     -- Primary identity
     id                    BIGINT PRIMARY KEY,
-    upload_id             BIGINT,
-    external_id           TEXT,
 
     -- Athlete reference
     athlete_id            BIGINT NOT NULL,
 
     -- Unstructured text 
-    name                  TEXT,         
-    description           TEXT,      
+    name                  TEXT,            
 
-    -- Structured activity metrics 
-    activity_type         TEXT,        
+    -- Structured activity metrics        
     sport_type            TEXT,
     distance_meters       NUMERIC,
     moving_time_seconds   INT,
@@ -30,10 +28,22 @@ CREATE TABLE activities (
     max_speed             NUMERIC,
     average_heartrate     NUMERIC,
     max_heartrate         NUMERIC,
-    calories              NUMERIC,
+    average_watts         NUMERIC,
+    kilojoules            NUMERIC,
+    comment_count         INT,
     pr_count              INT,
     achievement_count     INT,
     kudos_count           INT,
+    athlete_count         INT,
+
+    -- Locations
+    start_lat             NUMERIC,
+    start_long            NUMERIC,
+    end_lat               NUMERIC,
+    end_long              NUMERIC,
+    --end_latlng            GEOGRAPHY(Point, 4326),
+    elev_high             NUMERIC DEFAULT 0.0,
+    elev_low              NUMERIC DEFAULT 0.0,  
 
     -- Timestamps
     start_date            TIMESTAMPTZ,
@@ -62,7 +72,7 @@ CREATE TABLE activity_embeddings (
     activity_id     BIGINT NOT NULL REFERENCES activities(id) ON DELETE CASCADE,
 
     -- Which text was embedded (name, description, or combined)
-    chunk_type      TEXT NOT NULL CHECK (chunk_type IN ('name', 'description', 'combined')),
+    chunk_type      TEXT NOT NULL CHECK (chunk_type IN ('name')),
 
     -- The actual text that was embedded (for inspection / debugging)
     chunk_text      TEXT NOT NULL,
@@ -89,11 +99,11 @@ CREATE INDEX idx_embeddings_vector
 
 -- Metadata filtering indexes (pre-filter before vector search)
 CREATE INDEX idx_activities_athlete    ON activities(athlete_id);
-CREATE INDEX idx_activities_type       ON activities(activity_type);
+CREATE INDEX idx_sport_type            ON activities(sport_type);
 CREATE INDEX idx_activities_start_date ON activities(start_date);
 CREATE INDEX idx_activities_distance   ON activities(distance_meters);
 CREATE INDEX idx_activities_chunk_type ON activity_embeddings(chunk_type);
 
 -- Full-text search index on name/description (alternative/complement to vector)
 CREATE INDEX idx_activities_fts ON activities
-    USING gin(to_tsvector('english', coalesce(name,'') || ' ' || coalesce(description,'')));
+    USING gin(to_tsvector('english', coalesce(name,'')));
