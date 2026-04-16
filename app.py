@@ -6,8 +6,14 @@ from openai import OpenAI
 from fastapi import FastAPI, Form, HTTPException, Request, BackgroundTasks
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 from requests_oauthlib import OAuth2Session
-from src.rag_helper import *
+from src.rag_helper import (
+    get_schema_name,
+    provision_tenant_schema,
+    load_data_for_user,
+    run_rag_agent,
+)
 from contextlib import asynccontextmanager
 import logging
 import time
@@ -19,127 +25,156 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Suppress some logs
+# Suppress noisy logs
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 
-# FastAPI app
-app = FastAPI(title="Personal Coach AI", version="1.0.0")
+# ── FastAPI app ────────────────────────────────────────────────────────────────
+app = FastAPI(title="Personal Coach AI", version="2.0.0")
 
-# OAuth Config 
-client_id = os.getenv('CLIENT_ID')
-client_secret = os.getenv('CLIENT_SECRET')
-redirect_uri = "https://localhost:8000/callback" 
-auth_base_url = "https://www.strava.com/oauth/authorize"
-token_url = "https://www.strava.com/api/v3/oauth/token"
+# Session middleware — SESSION_SECRET_KEY must be a strong random value in prod.
+# Generate one with: python -c "import secrets; print(secrets.token_hex(32))"
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SESSION_SECRET_KEY", "change-me-in-production"),
+    session_cookie="strava_session",
+    max_age=86400,   # 1 day
+    https_only=True, # Set False only for local HTTP dev
+)
 
-session = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri)
-session.scope = ["activity:read_all"]
+# ── OAuth Config ───────────────────────────────────────────────────────────────
+CLIENT_ID     = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+REDIRECT_URI  = os.getenv("REDIRECT_URI", "https://localhost:8000/callback")
+AUTH_BASE_URL = "https://www.strava.com/oauth/authorize"
+TOKEN_URL     = "https://www.strava.com/api/v3/oauth/token"
+
+# ── Helpers ────────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
-async def timer(name):
+async def timer(name: str):
     start = time.time()
     yield
-    elapsed = time.time() - start
-    logger.info(f"{name}: {elapsed:.2f}s")
+    logger.info(f"{name}: {time.time() - start:.2f}s")
 
-@app.get("/")#, response_class=HTMLResponse)
+
+def _require_athlete(request: Request) -> str:
+    """Return athlete_id from session or raise 401."""
+    athlete_id = request.session.get("athlete_id")
+    if not athlete_id:
+        raise HTTPException(status_code=401, detail="Not authenticated. Please visit / to log in.")
+    return athlete_id
+
+
+# ── Routes ─────────────────────────────────────────────────────────────────────
+
+@app.get("/")
 def root():
-    authorization_url, _ = session.authorization_url(auth_base_url)
+    """Redirect to Strava OAuth consent screen."""
+    session = OAuth2Session(client_id=CLIENT_ID, redirect_uri=REDIRECT_URI)
+    session.scope = ["activity:read_all"]
+    authorization_url, _ = session.authorization_url(AUTH_BASE_URL)
     return RedirectResponse(authorization_url)
 
+
 @app.get("/callback")
-#async def index():
-#    """Serve the chat HTML interface"""
-#    with open("templates/chat.html", "r") as f:
-#        return f.read()
 async def callback(request: Request, background_tasks: BackgroundTasks):
-    # Capture the full HTTPS URL
+    """
+    1. Exchange Strava auth code for tokens.
+    2. Fetch the athlete's profile to get their unique ID.
+    3. Provision a dedicated PostgreSQL schema for this tenant (idempotent).
+    4. Store athlete_id + tokens in the session cookie.
+    5. Kick off background activity ingestion.
+    6. Serve the chat UI.
+    """
     authorization_response = str(request.url)
-    
-    session_user = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri)
+
+    session_user = OAuth2Session(client_id=CLIENT_ID, redirect_uri=REDIRECT_URI)
     session_user.scope = ["activity:read_all"]
-    session_user.fetch_token(
-        token_url=token_url,
-        client_id=client_id,
-	    client_secret=client_secret,
+    token = session_user.fetch_token(
+        token_url=TOKEN_URL,
+        client_id=CLIENT_ID,
+        client_secret=CLIENT_SECRET,
         authorization_response=authorization_response,
-        include_client_id=True
+        include_client_id=True,
     )
 
-    # Get individual activity (access to activity description)
-    #response = session_user.get("https://www.strava.com/api/v3/activities/17967927452") 
+    # ── Identify the athlete ───────────────────────────────────────────────────
+    athlete_resp = session_user.get("https://www.strava.com/api/v3/athlete")
+    athlete_resp.raise_for_status()
+    athlete_data = athlete_resp.json()
+    athlete_id   = str(athlete_data["id"])
 
-    # Get list of all activities (doesn't show activity description)
-    params = {'per_page': 200, 'page': 1}
-    response = session_user.get("https://www.strava.com/api/v3/athlete/activities/", params=params) 
+    # ── Persist tenant schema (no-op if already exists) ───────────────────────
+    schema = get_schema_name(athlete_id)
+    provision_tenant_schema(athlete_id)
 
-    # Extract the JSON data from the response
-    activities_data = response.json()
+    # ── Store session ──────────────────────────────────────────────────────────
+    request.session["athlete_id"]    = athlete_id
+    request.session["access_token"]  = token["access_token"]
+    request.session["refresh_token"] = token.get("refresh_token", "")
 
-    with open('my_strava_data.json', 'w') as f:
-        json.dump(activities_data, f, indent=4)
+    # ── Fetch activities (up to 200) and ingest in background ─────────────────
+    params           = {"per_page": 200, "page": 1}
+    activities_resp  = session_user.get(
+        "https://www.strava.com/api/v3/athlete/activities/", params=params
+    )
+    activities_resp.raise_for_status()
+    activities_data  = activities_resp.json()
 
-    #load_data()
-    #data = response.text
-    #print(len(activities_data))
-    #return None #activities_data #{"status": "Authenticated", "token": token}
-    background_tasks.add_task(load_data)
-    
-    # 4. Serve the Chat Interface
+    background_tasks.add_task(load_data_for_user, athlete_id, activities_data, schema)
+    logger.info(f"Queued ingestion of {len(activities_data)} activities for athlete {athlete_id}")
+
+    # ── Serve chat UI ──────────────────────────────────────────────────────────
     with open("templates/chat.html", "r") as f:
         return HTMLResponse(content=f.read())
 
-    #with open("templates/chat.html", "r") as f:
-    #    html_content = f.read()
-    
-    #return HTMLResponse(content=html_content, status_code=200)
-
-#async def index():
-#    """Serve the chat HTML interface"""
-#    with open("templates/chat.html", "r") as f:
-#        return f.read()
-
 
 @app.post("/get")
-async def chat(msg: str = Form(...)):
+async def chat(request: Request, msg: str = Form(...)):
     """
-    Handle chat messages and return RAG responses
-    
-    Args:
-        msg: User message from form submission
-        
-    Returns:
-        Generated response from RAG chain
+    Handle a chat message from the UI.
+    The tenant schema is derived from the session, so each user only ever
+    queries their own data.
     """
+    athlete_id = _require_athlete(request)
+
     async with timer("Total request"):
-        if not msg or msg.strip() == "":
+        if not msg or not msg.strip():
             raise HTTPException(status_code=400, detail="No input received.")
 
+        schema = get_schema_name(athlete_id)
+
         try:
-            async with timer("RAG chain"):
-                response = run_rag_agent(user_prompt=msg)
-            logger.info(f"Response: {response}")
+            async with timer("RAG agent"):
+                response = run_rag_agent(user_prompt=msg, schema=schema)
+            logger.info(f"[athlete={athlete_id}] Response: {response}")
             return response
         except Exception as e:
-            logger.error(f"Error: {e}")
-            raise HTTPException(status_code=500, detail="There was an error processing your request.")
+            logger.error(f"[athlete={athlete_id}] Error: {e}")
+            raise HTTPException(status_code=500, detail="Error processing your request.")
 
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
     return {"status": "healthy"}
 
+
+@app.get("/me")
+async def me(request: Request):
+    """Return basic session info (useful for debugging)."""
+    athlete_id = _require_athlete(request)
+    return {"athlete_id": athlete_id, "schema": get_schema_name(athlete_id)}
+
+
+# ── Entrypoint ─────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
+    # Local dev only — in production, Fargate/ALB handles SSL termination.
     uvicorn.run(
-    "main:app", 
-    host="127.0.0.1", 
-    port=8000, 
-    reload=True,
-    ssl_keyfile="./localhost-key.pem", 
-    ssl_certfile="./localhost.pem"
-)
-    
-    #port = int(os.environ.get("PORT", 5000))
-    #uvicorn.run(app, host="0.0.0.0", port=port)
+        "app:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=True,
+        ssl_keyfile="./localhost-key.pem",
+        ssl_certfile="./localhost.pem",
+    )

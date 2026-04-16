@@ -1,7 +1,11 @@
+# ── docker-compose.yml ── LOCAL DEVELOPMENT ONLY ──────────────────────────────
+# In production (ECS Fargate) the `db` service is replaced by RDS PostgreSQL.
+# The `app` service becomes an ECS task definition.
+# ──────────────────────────────────────────────────────────────────────────────
+
 services:
   db:
     image: pgvector/pgvector:pg16
-    #image: ghcr.io/cloudnative-pg/postgresql:16
     environment:
       POSTGRES_USER: user_name
       POSTGRES_PASSWORD: secret_password
@@ -9,21 +13,28 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      # Map schema.sql to Postgres folder
       - ./schema.sql:/docker-entrypoint-initdb.d/schema.sql
-      # Saves the data in case container stops
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user_name -d activities_pgdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   app:
     build: .
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     env_file:
       - .env
     environment:
-      # CRITICAL: Use 'db' (the service name) instead of 'localhost'
+      # Use the service name 'db' — not 'localhost' — inside Docker networking
       - DATABASE_URL=postgresql://user_name:secret_password@db:5432/activities_pgdb
       - TZ=America/Los_Angeles
+      # Override in .env with a real random value:
+      #   python -c "import secrets; print(secrets.token_hex(32))"
+      - SESSION_SECRET_KEY=local-dev-secret-change-me
     ports:
       - "8000:8000"
 
