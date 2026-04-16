@@ -116,7 +116,7 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
 
     # ── Fetch activities (up to 200) and ingest in background ─────────────────
     params           = {"per_page": 200, "page": 1}
-    activities_resp  = session_user.get(
+    activities_resp = session_user.get(
         "https://www.strava.com/api/v3/athlete/activities/", params=params
     )
     activities_resp.raise_for_status()
