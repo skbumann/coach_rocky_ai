@@ -8,4 +8,3 @@ mkcert -install
 # Create the certificate for localhost
 mkcert localhost
 
-uvicorn api_auth_fastapi:app --reload --ssl-keyfile ./localhost-key.pem --ssl-certfile ./localhost.pem
