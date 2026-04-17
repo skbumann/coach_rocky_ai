@@ -11,5 +11,5 @@ env/
 # OS Specific
 .DS_Store
 
-localhost.pem
-localhost-key.pem
+*.pem
+*.key

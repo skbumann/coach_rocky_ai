@@ -7,8 +7,8 @@ services:
   db:
     image: pgvector/pgvector:pg16
     environment:
-      POSTGRES_USER: user_name
-      POSTGRES_PASSWORD: secret_password
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: activities_pgdb
     ports:
       - "5433:5432"
@@ -20,6 +20,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    restart: unless-stopped
 
   app:
     build: .
@@ -30,11 +31,12 @@ services:
       - .env
     environment:
       # Use the service name 'db' — not 'localhost' — inside Docker networking
-      - DATABASE_URL=postgresql://user_name:secret_password@db:5432/activities_pgdb
-      - TZ=America/Los_Angeles
+      - DATABASE_URL
+      - TZ
       # Override in .env with a real random value:
       #   python -c "import secrets; print(secrets.token_hex(32))"
       - SESSION_SECRET_KEY=local-dev-secret-change-me
+    restart: unless-stopped
     ports:
       - "8000:8000"
 

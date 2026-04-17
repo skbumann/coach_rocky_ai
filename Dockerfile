@@ -27,4 +27,4 @@ EXPOSE 8000
 # For local dev with self-signed certs, override this in docker-compose.yml:
 #CMD [uvicorn app:app --reload --ssl-keyfile ./localhost-key.pem --ssl-certfile ./localhost.pem --host 0.0.0.0 --port 8000]
 # Replace your current CMD with this:
-CMD ["uvicorn", "app:app", "--reload", "--ssl-keyfile", "./localhost-key.pem", "--ssl-certfile", "./localhost.pem", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

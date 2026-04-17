@@ -45,7 +45,7 @@ app.add_middleware(
 # ── OAuth Config ───────────────────────────────────────────────────────────────
 CLIENT_ID     = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI  = os.getenv("REDIRECT_URI", "https://localhost:8000/callback")
+REDIRECT_URI  = os.getenv("REDIRECT_URI", "https://coach-rocky.com/callback")
 AUTH_BASE_URL = "https://www.strava.com/oauth/authorize"
 TOKEN_URL     = "https://www.strava.com/api/v3/oauth/token"
 
@@ -175,6 +175,4 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=8000,
         reload=True,
-        ssl_keyfile="./localhost-key.pem",
-        ssl_certfile="./localhost.pem",
     )
