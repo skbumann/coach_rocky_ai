@@ -1,4 +1,4 @@
-# My Strava Coach (Under Construction!)
+# My Strava Coach (Under Construction)
 Make your own personal coach RAG agent informed by your historical exercise data
 
 # Tl;dr
@@ -9,8 +9,7 @@ Modern LLM tools don't have access to private or proprietary data. RAG is a way 
 
 ## Why this project?
 
-I love Strava and I use it religiously. As such, my account has a very comprehensive picture of my athletic abilities, schedule, and even mood through unstructured data like captions and activity descriptions.
-I am currently developing a tool that allows someone to sync their account (to-do), retrieve their data through the Strava API, and ask an LLM general questions like training advice, summarizing specific stats, etc.
+I love Strava and I use it religiously. As such, my account has a very comprehensive picture of my athletic abilities, schedule, and even mood through unstructured data like captions and activity descriptions. With this tool, users will be able to retrieve their own Strava data through the API and ask an LLM general questions like training advice, summarizing specific stats, etc.
 
 ## Current Infrastructure
 
@@ -28,7 +27,7 @@ I am currently developing a tool that allows someone to sync their account (to-d
 
 ## Future Work
   
-  -Deploy on AWS EC2 for cloud access. This app is currently in the "Development" stage, which is limites to single users. 
+  -Deploy on AWS EC2. This app is currently in the "Development" stage, which is limited to single users. 
 
   -Smarter prompting. It's pretty lean right now.
   
