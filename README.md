@@ -1,5 +1,5 @@
-# My Strava Coach (Under Construction!)
-A Personal Coach RAG Agent Informed by Historical Exercise Data
+# Coach Rocky (Under Construction)
+Make your own personal coach RAG agent informed by your historical Strava data
 
 # Tl;dr
 
@@ -9,12 +9,11 @@ Modern LLM tools don't have access to private or proprietary data. RAG is a way 
 
 ## Why this project?
 
-I love Strava and I use it religiously. As such, my account has a very comprehensive picture of my athletic abilities, schedule, and even mood through unstructured data like captions and activity descriptions.
-I am currently developing a tool that allows someone to sync their account (to-do), retrieve their data through the Strava API, and ask an LLM general questions like training advice, summarizing specific stats, etc.
+I love Strava and I use it religiously. As such, my account has a very comprehensive picture of my athletic abilities, schedule, and even mood through unstructured data like captions and activity descriptions. With this tool, users will be able to retrieve their own Strava data through the API and ask an LLM general questions like training advice, summarizing specific stats, etc.
 
 ## Current Infrastructure
 
-  -Data: synthetic running, biking, and swimming activity data following the JSON format used by the Strava API (https://developers.strava.com/playground/), for a single athlete
+  -Data: Users are granted access to their Strava data (JSON) via the API, which is loaded into a PostgresSQL DB. Both the relational data and vector embeddings of the activity names are stored.
 
   -Tool-calling: A LangGraph ReAct agent answers natural language questions about the Strava-like training data by combining three tools:
 
@@ -27,10 +26,10 @@ I am currently developing a tool that allows someone to sync their account (to-d
   -Containerization via Docker for portability
 
 ## Future Work
-
-  -Enable Strava API access with OAuth 2.0
   
-  -Deploy on AWS EC2 for cloud access
+  -Deploy on AWS EC2. This app is currently in the "Development" stage, which is limited to single users. 
+
+  -Smarter prompting. It's pretty lean right now.
   
   -Adding memory to conversations
   
@@ -38,10 +37,11 @@ I am currently developing a tool that allows someone to sync their account (to-d
 
   -UI/UX improvements
 
-## Getting started
-1. Configure your .env file with your OPENAI_API_KEY key.
-2. Follow the instructions in https_hack.txt. Strava requires a secure https url to redirect to after authorization so this provides a workaround when building locally.
-3. Using docker, run:
+## Getting started (locally, due to Strava's API athlete limit)
+1. Follow these instructions to make your own API application: https://developers.strava.com/docs/getting-started/. Set your website and "authorization callback domain" to "localhost."
+2. Configure your .env file with your OPENAI_API_KEY, CLIENT_ID (from your Strava API application), and CLIENT_SECRET (from your Strava API application).
+3. Follow the instructions in https_hack.txt. Strava requires a secure https url to redirect to after authorization so this provides a workaround when building locally.
+4. Using docker, run:
 
 ```docker-compose up --build```
 
