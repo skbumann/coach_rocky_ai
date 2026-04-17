@@ -37,7 +37,7 @@ I love Strava and I use it religiously. As such, my account has a very comprehen
 
   -UI/UX improvements
 
-## Getting started (locally, due to Strava's API athlete limit)
+## Getting started (locally)
 1. Follow these instructions to make your own API application: https://developers.strava.com/docs/getting-started/. Set your website and "authorization callback domain" to "localhost."
 2. Configure your .env file with your OPENAI_API_KEY, CLIENT_ID (from your Strava API application), and CLIENT_SECRET (from your Strava API application).
 3. Follow the instructions in https_hack.txt. Strava requires a secure https url to redirect to after authorization so this provides a workaround when building locally.
