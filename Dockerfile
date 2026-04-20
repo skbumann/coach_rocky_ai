@@ -1,7 +1,4 @@
-# ── Dockerfile ────────────────────────────────────────────────────────────────
-# Production build — SSL is handled by ALB, not uvicorn.
-# For local dev with self-signed certs, override CMD in docker-compose.yml.
-# ──────────────────────────────────────────────────────────────────────────────
+# Dockerfile 
 
 FROM python:3.11-slim
 
@@ -23,8 +20,4 @@ USER appuser
 
 EXPOSE 8000
 
-# Production: plain HTTP — TLS is terminated at the ALB.
-# For local dev with self-signed certs, override this in docker-compose.yml:
-#CMD [uvicorn app:app --reload --ssl-keyfile ./localhost-key.pem --ssl-certfile ./localhost.pem --host 0.0.0.0 --port 8000]
-# Replace your current CMD with this:
 CMD ["uvicorn", "app:app", "--reload", "--ssl-keyfile", "./localhost-key.pem", "--ssl-certfile", "./localhost.pem", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]

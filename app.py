@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 
-# ── FastAPI app ────────────────────────────────────────────────────────────────
+# FastAPI app
 app = FastAPI(title="Personal Coach AI", version="2.0.0")
 
 # Session middleware — SESSION_SECRET_KEY must be a strong random value in prod.
@@ -42,14 +42,14 @@ app.add_middleware(
     https_only=True, # Set False only for local HTTP dev
 )
 
-# ── OAuth Config ───────────────────────────────────────────────────────────────
+# OAuth Config
 CLIENT_ID     = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
 REDIRECT_URI  = os.getenv("REDIRECT_URI", "https://localhost:8000/callback")
 AUTH_BASE_URL = "https://www.strava.com/oauth/authorize"
 TOKEN_URL     = "https://www.strava.com/api/v3/oauth/token"
 
-# ── Helpers ────────────────────────────────────────────────────────────────────
+# Helpers 
 
 @asynccontextmanager
 async def timer(name: str):
@@ -66,7 +66,7 @@ def _require_athlete(request: Request) -> str:
     return athlete_id
 
 
-# ── Routes ─────────────────────────────────────────────────────────────────────
+# Routes
 
 @app.get("/")
 def root():
@@ -99,22 +99,22 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
         include_client_id=True,
     )
 
-    # ── Identify the athlete ───────────────────────────────────────────────────
+    # Identify the athlete 
     athlete_resp = session_user.get("https://www.strava.com/api/v3/athlete")
     athlete_resp.raise_for_status()
     athlete_data = athlete_resp.json()
     athlete_id   = str(athlete_data["id"])
 
-    # ── Persist tenant schema (no-op if already exists) ───────────────────────
+    # Persist tenant schema (no-op if already exists)
     schema = get_schema_name(athlete_id)
     provision_tenant_schema(athlete_id)
 
-    # ── Store session ──────────────────────────────────────────────────────────
+    # Store session 
     request.session["athlete_id"]    = athlete_id
     request.session["access_token"]  = token["access_token"]
     request.session["refresh_token"] = token.get("refresh_token", "")
 
-    # ── Fetch activities (up to 200) and ingest in background ─────────────────
+    # Fetch activities (up to 200) and ingest in background 
     params           = {"per_page": 200, "page": 1}
     activities_resp = session_user.get(
         "https://www.strava.com/api/v3/athlete/activities/", params=params
@@ -125,7 +125,7 @@ async def callback(request: Request, background_tasks: BackgroundTasks):
     background_tasks.add_task(load_data_for_user, athlete_id, activities_data, schema)
     logger.info(f"Queued ingestion of {len(activities_data)} activities for athlete {athlete_id}")
 
-    # ── Serve chat UI ──────────────────────────────────────────────────────────
+    # Serve chat UI 
     with open("templates/chat.html", "r") as f:
         return HTMLResponse(content=f.read())
 
@@ -167,9 +167,8 @@ async def me(request: Request):
     return {"athlete_id": athlete_id, "schema": get_schema_name(athlete_id)}
 
 
-# ── Entrypoint ─────────────────────────────────────────────────────────────────
+# Entrypoint 
 if __name__ == "__main__":
-    # Local dev only — in production, Fargate/ALB handles SSL termination.
     uvicorn.run(
         "app:app",
         host="127.0.0.1",

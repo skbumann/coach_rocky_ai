@@ -1,11 +1,3 @@
-"""
-rag_helper.py — Multi-tenant RAG pipeline
-==========================================
-Each Strava user gets an isolated PostgreSQL schema: athlete_<id>.
-All DB helpers accept a `schema` parameter so no user ever touches
-another user's data.
-"""
-
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -33,7 +25,7 @@ logger = logging.getLogger(__name__)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
 
-# ── Config ─────────────────────────────────────────────────────────────────────
+# Config 
 EMBEDDING_MODEL = "text-embedding-3-small"
 CHAT_MODEL      = "gpt-4o-mini"
 VECTOR_DIMS     = 1536
@@ -53,7 +45,7 @@ ALLOWED_COLUMNS = {
     "gear_id", "trainer", "commute", "private",
 }
 
-# ── Tenant helpers ─────────────────────────────────────────────────────────────
+# Tenant helpers 
 
 def get_schema_name(athlete_id: str) -> str:
     """Return the PostgreSQL schema name for a given athlete."""
@@ -131,7 +123,7 @@ def provision_tenant_schema(athlete_id: str) -> None:
     logger.info(f"Schema {schema} is ready.")
 
 
-# ── DB connection ──────────────────────────────────────────────────────────────
+# DB connection 
 
 def get_conn():
     dsn = os.getenv("DATABASE_URL")
@@ -149,7 +141,7 @@ def get_conn():
     #return psycopg2.connect(dsn, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
-# ── Ingestion ──────────────────────────────────────────────────────────────────
+# Ingestion 
 
 def ingest_activity(activity: dict, schema: str) -> None:
     """Insert a raw activity JSON into the tenant's activities table."""
@@ -277,7 +269,7 @@ def load_data_for_user(athlete_id: str, activities_data: list, schema: str) -> N
     logger.info(f"[{schema}] Ingestion complete — {success} succeeded, {failed} failed.")
 
 
-# ── Semantic retrieval ─────────────────────────────────────────────────────────
+# Semantic retrieval
 
 def retrieve_similar_activities(
     query: str,
@@ -326,7 +318,7 @@ def retrieve_similar_activities(
             return cur.fetchall()
 
 
-# ── SQL safety guard ───────────────────────────────────────────────────────────
+# SQL safety guard 
 
 def _scope_and_validate_sql(raw_sql: str, schema: str) -> str:
     """
@@ -353,7 +345,7 @@ def _scope_and_validate_sql(raw_sql: str, schema: str) -> str:
     return scoped
 
 
-# ── LangGraph tools (schema-bound factory) ────────────────────────────────────
+# LangGraph tools (schema-bound factory) 
 
 def create_tools_for_schema(schema: str):
     """
@@ -452,7 +444,7 @@ def create_tools_for_schema(schema: str):
     return [get_strava_stats, get_activity_vibes, get_training_baseline]
 
 
-# ── Main RAG entry point ───────────────────────────────────────────────────────
+# Main RAG entry point 
 
 def run_rag_agent(user_prompt: str, schema: str) -> str:
     """
@@ -473,7 +465,7 @@ def run_rag_agent(user_prompt: str, schema: str) -> str:
     return response["messages"][-1].content
 
 
-# ── Local dev helper ───────────────────────────────────────────────────────────
+# Local dev helper 
 
 if __name__ == "__main__":
     """
